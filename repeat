@@ -1,0 +1,223 @@
+#!/usr/bin/env perl -w
+
+######################################################################
+#  FILE:      repeat.pl
+#  AUTHOR     Evan Moran
+#  DESCRIPTION:   Repeat a given command with argument substitution.
+#  USAGE:         repeat [-t] <command> <argfile>
+#
+#       -t        Test mode (print instead of execute)
+#
+#    <command>    Command to execute.
+#
+#    <argsfile>   A text file to indicate which arguments to substitute
+#                 into the command.
+#
+#                 Each line corresponds to a single command execution,
+#                 and is separated by tabs to distingush between
+#                 argument numbers.
+#
+#  EXAMPLE:
+#
+#    1. Create args.txt =
+#    a    b
+#    c    d
+#
+#    2. repeat -t "echo $1 $2 $2 $1" args.txt
+#    echo a b b a
+#    echo c d d c
+#
+#    3. repeat "echo $1 $2 $2 $1" args.txt
+#    a b b a
+#    c d d c
+######################################################################
+
+use strict;
+use warnings;
+
+#Determine number of arguments
+my $argc = sizeof(@ARGV) + 1;
+
+my ($TESTMODE, $ARGLIST, $COMMAND);
+
+#Interpret arguments
+if ($argc == 4)
+{
+  ($TESTMODE, $COMMAND, $ARGLIST) = @ARGV;
+
+  if ($TESTMODE eq "-t"){
+    $TESTMODE = 1;
+  }
+  #Fail if option is unknown
+  else {
+    PrintError("Invalid option");
+    PrintHelp();
+    exit;
+  }
+}
+elsif ($argc == 3)
+{
+  ($COMMAND, $ARGLIST) = @ARGV;
+  $TESTMODE = 0;
+}
+else
+{
+  PrintHelp();
+  exit;
+}
+
+#Open string list
+open(ARGLIST, $ARGLIST);
+my @lines = <ARGLIST>;
+
+#Fail if file is empty or invalid
+if (not sizeof(@lines))
+{
+  PrintError("File is empty or invalid");
+  PrintHelp();
+  close ARGLIST;
+  exit;
+}
+
+
+#Iterate over lines in file
+my $line;
+my $command;
+my $i;
+my $j;
+my @args;
+for ($i = 0; $i < sizeof(@lines); $i++)
+{
+  #Get next line
+  $line = $lines[$i];
+  chomp($line);
+
+  #Skip over lines that begin with '//' or are blank
+  if ($line eq "" or $line =~ /^\/\//) {
+    next;
+  }
+
+  #Initialize command
+  $command = $COMMAND;
+
+  #Split line into tab seperated parts
+  @args = split(/\t/, $line);
+
+  #Iterate over strings on each line
+  for ($j = sizeof(@args)-1;$j >= 0 ; $j--)
+  {
+    my $number = $j+1;
+    #Substitute string into command
+    $command =~ s/\$$number/$args[$j]/g;
+  }
+
+  #Run command
+  if ($TESTMODE) {
+    print "$command\n";
+  }
+  else {
+    print `$command`;
+  }
+}
+
+close ARGLIST;
+
+######################################################################
+#   PrintHelp
+#   Print commandline help
+######################################################################
+sub PrintHelp
+{
+  PrintDescription();
+  PrintUsage();
+  PrintExample();
+}
+
+
+######################################################################
+#   PrintUsage
+#   Print commandline usage information
+######################################################################
+sub PrintUsage
+{
+  print <<EOF;
+
+USAGE:
+
+  repeat [-t] <command> <argsfile>
+
+     -t       Optional test mode (print instead of execute)
+
+  <command>   Command to execute.
+
+  <argsfile>  A text file to indicate which arguments to substitute
+              into the command.
+
+              Each line corresponds to a single command execution,
+              and is separated by tabs to distingush between
+              argument numbers.
+
+              Lines beginning with '//' will be skipped.
+EOF
+}
+
+######################################################################
+#   PrintDescription
+#   Print description of program
+######################################################################
+sub PrintDescription
+{
+  print <<EOF;
+
+DESCRIPTION:
+
+  Repeat a command with argument substitution
+EOF
+}
+
+######################################################################
+#   PrintExample
+#   Print commandline example
+######################################################################
+sub PrintExample
+{
+  print <<EOF;
+EXAMPLE:
+
+  1. Create args.txt =
+  a    b
+  c    d
+
+  2. repeat -t \"echo \$1 \$2 \$2 \$1\" args.txt
+  echo a b b a
+  echo c d d c
+
+  3. repeat \"echo \$1 \$2 \$2 \$1\" args.txt
+  a b b a
+  c d d c
+EOF
+}
+
+#    2. repeat -t "echo $1 $2 $2 $1" args.txt
+#    echo a b b a
+#    echo c d d c
+
+######################################################################
+#   PrintError
+#   Print error
+######################################################################
+sub PrintError
+{
+  my $message = $_[0];
+  print "\nERROR: $message\n";
+}
+
+######################################################################
+#   sizeof(
+#   Get size of array
+######################################################################
+sub sizeof
+{
+  my $size = scalar(@_);
+  return $size;
+}
