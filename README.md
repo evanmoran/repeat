@@ -27,7 +27,7 @@ example this would have created two files: `a10.txt` and `b20.txt`.
 Usage
 --------------------------------------------------------------------
 
-### repeat format [options] [files...]
+#### repeat format [options] [files...]
 
     format                  The format string of the command to execute
                             Arguments are passed with the dollar sign:
