@@ -1,223 +1,420 @@
-#!/usr/bin/env perl -w
-
-######################################################################
-#  FILE:      repeat.pl
-#  AUTHOR     Evan Moran
-#  DESCRIPTION:   Repeat a given command with argument substitution.
-#  USAGE:         repeat [-t] <command> <argfile>
+#!/usr/bin/env perl
 #
-#       -t        Test mode (print instead of execute)
+# repeat v2.0.5
+# ====================================================================
 #
-#    <command>    Command to execute.
+# (c) 2005-2012 Evan Moran
+# Repeat is freely distributable under the MIT license.
 #
-#    <argsfile>   A text file to indicate which arguments to substitute
-#                 into the command.
+# http://github.com/evanmoran/repeat
 #
-#                 Each line corresponds to a single command execution,
-#                 and is separated by tabs to distingush between
-#                 argument numbers.
+# How does it work?
+# --------------------------------------------------------------------
+# Repeat allows commands to be automated with automagic substitution
 #
-#  EXAMPLE:
+# Quick example:
 #
-#    1. Create args.txt =
-#    a    b
-#    c    d
+#     echo 'a, 10\nb, 20' |  repeat "touch '#1#2.txt'" --separator ','
 #
-#    2. repeat -t "echo $1 $2 $2 $1" args.txt
-#    echo a b b a
-#    echo c d d c
+# Output:
 #
-#    3. repeat "echo $1 $2 $2 $1" args.txt
-#    a b b a
-#    c d d c
-######################################################################
+#     touch 'a10.txt'
+#     touch 'b20.txt'
+#
+# What you are seeing is the input is two lines of a comma separated list:
+#
+#     a, 10
+#     b, 20
+#
+# Repeat takes this input and splits by the separator `,`.
+# Then #1 and #2 are substituted as the first column in each line.
+#
+# By default repeat simply prints the commands, but does not run
+# the command. To execute the commands use the execute option
+# which is done with either `-x` or `--execute`. In the above
+# example this would have created two files: `a10.txt` and `b20.txt`.
+#
+# Usage
+# --------------------------------------------------------------------
+#
+# #### repeat format [options] [files...]
+#
+#     format                  The format string of the command to execute
+#                             Arguments are passed with the dollar sign:
+#
+#                               #1   First argument
+#                               #2   Second argument
+#                                    (and so on...)
+#
+#     options
+#
+#       -h, --help            Help on usage with examples
+#       -x, --execute         Execute the command instead of printing it
+#       -c, --comment <c>     Regexp to detect comment line (default: '(//|\#)')
+#       -s, --separator <c>   Regexp to split content on (default: '\t')
+#       -m, --marker <c>      Regexp to find argument in the format (default: '\#')
+#
+#                             In many ways `$` is a more natural choice but because it
+#                             has much more meaning on the commandline it ends up
+#                             requiring lots more escaping.
+#
+#       --comma               Alias for --separator ','
+#       --tab                 Alias for --separator '\t'
+#       --tabs                Alias for --separator '\t+'
+#       --spaces              Alias for --separator ' +'
+#       --whitespace          Alias for --separator '\s+'
+#
+#       --strict              Prevent commands from running if any $args are missing
+#                             This is useful if your data is irregular and missing
+#                             arguments could lead to bad commands (default: off)
+#
+#     files                   List of files to use as arguments to the format string
+#
+#                             Each line corresponds to a single format execution.
+#                             The --separator defines what the file is split on,
+#                             where the first part becomes $1, the second $2, etc.
+#
+# Format Strings
+# --------------------------------------------------------------------
+# Format strings act much like regular expression and printf formats. They
+# can reorder items and place them around other characters.
+#
+#     #1          First argument
+#     #2          Second argument
+#     ...         ...
+#
+# Format strings can also come with printf-like formatting
+#
+#     #{1,i}      The first number is the argument index as above
+#                 The second part (after the comma) is the extra formatting
+#
+# Advanced formatting: (all on first argument)
+#
+#     #{1,i}      Convert to an integer (truncated precision)
+#     #{1,b}      Convert to a binary number
+#     #{1,o}      Convert to an octal number
+#     #{1,c}      Convert to an ascii character
+#     #{1,d}      Convert to a signed integer
+#     #{1,u}      Convert to an unsigned integer
+#     #{1,e}      Convert to floating point in scientific notation
+#     #{1,x}      Convert to hex
+#     #{1,X}      Convert to hex with CAPITAL LETTERS
+#
+#     #{1,6s}     Convert to a string with six spaces or more
+#                 ('hi' => '    hi')
+#
+#     #{1,-6s}    Convert to a string with six spaces left justified
+#                 ('hi' => 'hi    ')
+#
+#     #{1,6i}     Convert to an integer with six spaces
+#                 ('3.14159' => '     3')
+#
+#     #{1,0.4f}   Convert to a float rounded to 4 decimal places
+#                 ('3.14159' => '3.1416')
+#
+#     #{1,6.4i}   Float with minimum of six spaces and 4 decimal places
+#                 ('3.14159' => ' 3.1416')
+#
 
 use strict;
 use warnings;
+use Getopt::Long qw(GetOptions);
+use Data::Dumper qw(Dumper);
 
-#Determine number of arguments
-my $argc = sizeof(@ARGV) + 1;
+my %options = getOptions();
 
-my ($TESTMODE, $ARGLIST, $COMMAND);
+sub getOptions {
+  my %options = (
+    'version' => '2.0.5',
+    'strict'   => 0,
+    'execute' => 0,
+    'print' => 0,
+    'comment' => '(?://|\#)',
+    'separator' => '\t',
+    'marker' => '\#',
+    'trim' => 1,
+  );
 
-#Interpret arguments
-if ($argc == 4)
-{
-  ($TESTMODE, $COMMAND, $ARGLIST) = @ARGV;
+  GetOptions(
+    'h|help'        => sub { printHelp(0); },
+    'x|execute'     => \$options{'execute'},
+    'v|verbose'     => \$options{'verbose'},
+    'c|comment=s'   => \$options{'comment'},
+    's|separator=s' => \$options{'separator'},
+    'm|marker=s'    => \$options{'marker'},
+    'strict'        => \$options{'strict'},
+    'notrim'        => sub { $options{'trim'} = 0; },
+    'version'       => sub { print "$options{'version'}\n"; exit 0;},
+    'comma'         => sub { $options{'separator'} = ",";},
+    'tab'           => sub { $options{'separator'} = '\t';},
+    'tabs'          => sub { $options{'separator'} = '\t+';},
+    'spaces'        => sub { $options{'separator'} = ' +';},
+    'whitespace'    => sub { $options{'separator'} = '\s+';},
 
-  if ($TESTMODE eq "-t"){
-    $TESTMODE = 1;
-  }
-  #Fail if option is unknown
-  else {
-    PrintError("Invalid option");
-    PrintHelp();
-    exit;
-  }
+  ) || printError("Unknown arguments", 1);
+
+  # Default to print if we're not executing
+  $options{'print'} = 1 if !$options{'execute'};
+
+  # Require that a format has been passed
+  printUsage(1) if ($#ARGV < 0);
+
+  # First argument is the format or print format
+  $options{'format'} = shift(@ARGV);
+
+  return %options;
 }
-elsif ($argc == 3)
-{
-  ($COMMAND, $ARGLIST) = @ARGV;
-  $TESTMODE = 0;
-}
-else
-{
-  PrintHelp();
+
+# Get lines from files or STDIN
+my @lines = <>;
+# Fail if file is empty or invalid
+if (not sizeof(@lines)) {
+  printError("File is empty or invalid");
+  printHelp();
   exit;
 }
 
-#Open string list
-open(ARGLIST, $ARGLIST);
-my @lines = <ARGLIST>;
+# Split format into replaceable parts
+my $format = $options{'format'};
+my $splitPattern = "
+  (?<!\\\\\\\\)($options{'marker'}
+  (?:
+    \\d+
+    |
+    \\{
+      \\d+
+      (?:,
+        [^\\}]*
+      )?
+    \\}
+   ))";
 
-#Fail if file is empty or invalid
-if (not sizeof(@lines))
+my @formatParts = split(/$splitPattern/x, $format);
+
+# Replace arguments line by line and create commands
+my @commands = ();
+for my $line (@lines)
 {
-  PrintError("File is empty or invalid");
-  PrintHelp();
-  close ARGLIST;
-  exit;
+  chomp $line;
+
+  # Skip over lines that begin with '//' or are blank
+  my $comment = $options{'comment'};
+  next if ($line eq "" or $line =~ /^$comment/);
+
+  # Split by separator
+  my $separator = $options{'separator'};
+
+  # Split line into tab seperated parts
+  my @args = split(/$separator/, $line);
+
+  # Replace arguments using the format string
+  my $capturePattern = "
+    ^
+      $options{'marker'}
+      (?:
+        (?<index>\\d+)
+        |
+        \\{
+          (?<index>\\d+)
+          (?:,
+            (?<format>[^\\}]*)
+          )?
+        \\}
+      )
+    \$";
+  my @parts = @formatParts;
+  for (my $i = 1; $i <= $#parts; $i += 2) {
+    if ($parts[$i] =~ /$capturePattern/x) {
+      my $arg = $args[$+{index}-1];
+      $arg = trim($arg) if ($options{'trim'});
+      my $scanFormat = trim($+{format});
+      if (defined($scanFormat)) {
+        $parts[$i] = replaceFormat($scanFormat, $arg)
+      } else {
+        $parts[$i] = $arg
+      }
+    }
+  }
+
+  # Assemble command from parts
+  my $command = join('', @parts);
+  push(@commands, $command);
+
+  # Print command if option is set
+  print $command . "\n" if ($options{'print'});
+
+  # Print [command] if print and execute are set
+  print "[$command]" . "\n" if ($options{'verbose'} && $options{'execute'});
+
+  # Execute command if option is set
+  print `$command` if ($options{'execute'});
 }
 
-
-#Iterate over lines in file
-my $line;
-my $command;
-my $i;
-my $j;
-my @args;
-for ($i = 0; $i < sizeof(@lines); $i++)
+sub replaceFormat
 {
-  #Get next line
-  $line = $lines[$i];
-  chomp($line);
+  my ($scanFormat, $value) = @_;
 
-  #Skip over lines that begin with '//' or are blank
-  if ($line eq "" or $line =~ /^\/\//) {
-    next;
+  my $formatPattern = "
+  ^
+    (
+      \\-?\\d*(\\.(\\d*))?
+    )?
+    [a-zA-Z]
+  \$
+  ";
+  if ($scanFormat =~ /$formatPattern/x) {
+    return sprintf("%$scanFormat", $value);
   }
-
-  #Initialize command
-  $command = $COMMAND;
-
-  #Split line into tab seperated parts
-  @args = split(/\t/, $line);
-
-  #Iterate over strings on each line
-  for ($j = sizeof(@args)-1;$j >= 0 ; $j--)
-  {
-    my $number = $j+1;
-    #Substitute string into command
-    $command =~ s/\$$number/$args[$j]/g;
-  }
-
-  #Run command
-  if ($TESTMODE) {
-    print "$command\n";
-  }
-  else {
-    print `$command`;
-  }
+  return $value;
 }
 
-close ARGLIST;
+# Exit success
+exit 0;
 
-######################################################################
-#   PrintHelp
-#   Print commandline help
-######################################################################
-sub PrintHelp
+#   printHelp
+# --------------------------------------------------------------------
+#   Print complete help
+
+sub printHelp
 {
-  PrintDescription();
-  PrintUsage();
-  PrintExample();
+  printUsage();
+
+  print <<EOF;
+  Basic Formatting:
+
+    #1         The first argument
+    #2         The second argument
+    ...         ...
+
+  Advanced Formatting:
+
+    #{1,i}      The first number is the argument index as above
+                The second part (after the comma) is the extra formatting
+
+    #{1,i}      Convert to an integer (truncated precision)
+    #{1,b}      Convert to a binary number
+    #{1,o}      Convert to an octal number
+    #{1,c}      Convert to an ascii character
+    #{1,d}      Convert to a signed integer
+    #{1,u}      Convert to an unsigned integer
+    #{1,e}      Convert to floating point in scientific notation
+    #{1,x}      Convert to hex
+    #{1,X}      Convert to hex with CAPITAL LETTERS
+
+    #{1,6s}     Convert to a string with six spaces or more
+                ('hi' => '    hi')
+
+    #{1,-6s}    Convert to a string with six spaces left justified
+                ('hi' => 'hi    ')
+
+    #{1,6i}     Convert to an integer with six spaces
+                ('3.14159' => '     3')
+
+    #{1,0.4f}   Convert to a float rounded to 4 decimal places
+                ('3.14159' => '3.1416')
+
+    #{1,6.4i}   Float with minimum of six spaces and 4 decimal places
+                ('3.14159' => ' 3.1416')
+
+  Example:
+
+      echo 'a, 10\\nb, 20' |  repeat "touch '#1#2.txt'" --separator ','
+
+  Output:
+
+      touch 'a10.txt'
+      touch 'b20.txt'
+
+  By default repeat simply prints the commands, but does not run them.
+  You can run the commands by using the execute option, which is done with
+  either -x or --execute.
+
+  Verbose prints the commands as they are executed.
+
+EOF
+
+  # Exit with argument if present
+  exit($_[0]) if ($#_ >= 0);
+
 }
 
-
-######################################################################
-#   PrintUsage
+#   printUsage
+# --------------------------------------------------------------------
 #   Print commandline usage information
-######################################################################
-sub PrintUsage
+
+sub printUsage
 {
   print <<EOF;
 
-USAGE:
+  repeat format [options] [files...]
 
-  repeat [-t] <command> <argsfile>
+    format                  The format string of the command to execute
 
-     -t       Optional test mode (print instead of execute)
+    options
 
-  <command>   Command to execute.
+      -h, --help            Help on usage with examples
+      -x, --execute         Execute the command instead of printing it
+      -c, --comment <c>     Regexp to detect comment line (default: '(//|\\#)')
+      -s, --separator <c>   Regexp to split content on (default: '\\t')
+      -m, --marker <c>      Regexp to find argument in the format (default: '(\\#|\\\$)')
+                            `#` or `\$` can be used interchangeably.
+                            Generally `\$` has more meaning on the commandline
+                            so it harder to type without escaping.
 
-  <argsfile>  A text file to indicate which arguments to substitute
-              into the command.
+      --comma               Alias for --separator ','
+      --tab                 Alias for --separator '\\t'
+      --tabs                Alias for --separator '\\t+'
+      --spaces              Alias for --separator ' +'
+      --whitespace          Alias for --separator '\\s+'
+      --whitespace2         Alias for --separator '\\s\\s+'
+      --whitespace3         Alias for --separator '\\s\\s\\s+'
 
-              Each line corresponds to a single command execution,
-              and is separated by tabs to distingush between
-              argument numbers.
+      --strict              Prevent commands from running if any #args are missing
+                            This is useful if your data is irregular and missing
+                            arguments could lead to bad commands (default: off)
 
-              Lines beginning with '//' will be skipped.
+    files                   List of files to use as arguments to the format string
+
+                            Each line corresponds to a single format execution.
+                            The --separator defines what the file is split on,
+                            where the first part becomes #1, the second #2, etc.
+
+                            By default lines beginning with '//' or '#' will be skipped.
+
 EOF
+
+  # Exit with argument if present
+  exit($_[0]) if ($#_ >= 0);
 }
 
-######################################################################
-#   PrintDescription
-#   Print description of program
-######################################################################
-sub PrintDescription
-{
-  print <<EOF;
-
-DESCRIPTION:
-
-  Repeat a command with argument substitution
-EOF
-}
-
-######################################################################
-#   PrintExample
-#   Print commandline example
-######################################################################
-sub PrintExample
-{
-  print <<EOF;
-EXAMPLE:
-
-  1. Create args.txt =
-  a    b
-  c    d
-
-  2. repeat -t \"echo \$1 \$2 \$2 \$1\" args.txt
-  echo a b b a
-  echo c d d c
-
-  3. repeat \"echo \$1 \$2 \$2 \$1\" args.txt
-  a b b a
-  c d d c
-EOF
-}
-
-#    2. repeat -t "echo $1 $2 $2 $1" args.txt
-#    echo a b b a
-#    echo c d d c
-
-######################################################################
-#   PrintError
-#   Print error
-######################################################################
-sub PrintError
+#   printError
+# --------------------------------------------------------------------
+sub printError
 {
   my $message = $_[0];
-  print "\nERROR: $message\n";
+  print "\nrepeat: $message\n";
+
+  # Exit with argument if present
+  exit($_[1]) if ($#_ >= 1);
 }
 
-######################################################################
-#   sizeof(
-#   Get size of array
-######################################################################
+#   sizeof
+# --------------------------------------------------------------------
 sub sizeof
 {
-  my $size = scalar(@_);
-  return $size;
+  return scalar(@_);
+}
+
+#   trim
+# --------------------------------------------------------------------
+#   Get string
+
+sub trim
+{
+  my $str = shift;
+  if(defined($str)){
+    $str =~ s/^\s+//g;
+    $str =~ s/\s+$//g;
+  }
+  return $str;
 }
