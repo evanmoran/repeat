@@ -12,7 +12,7 @@ Repeat allows commands to be automated with automagic substitution.
 
 Quick example:
 
-    echo 'a, 10\nb, 20' |  repeat "touch '$1$2.txt'" --separator ','
+    echo 'a, 10\nb, 20' |  repeat "touch '#1#2.txt'" --separator ','
 
 Output:
 
@@ -32,17 +32,22 @@ Usage
     format                  The format string of the command to execute
                             Arguments are passed with the dollar sign:
 
-                              $1   First argument
-                              $2   Second argument
+                              #1   First argument
+                              #2   Second argument
                                    (and so on...)
 
     options
 
       -h, --help            Help on usage with examples
       -x, --execute         Execute the command instead of printing it
-      -c, --comment <c>     Regexp to detect comment line (default: '(//|#)')
-
+      -c, --comment <c>     Regexp to detect comment line (default: '(//|\#)')
       -s, --separator <c>   Regexp to split content on (default: '\t')
+      -m, --marker <c>      Regexp to find argument in the format (default: '\#')
+
+                            In many ways `$` is a more natural choice but because it
+                            has much more meaning on the commandline it ends up
+                            requiring lots more escaping.
+
       --comma               Alias for --separator ','
       --tab                 Alias for --separator '\t'
       --tabs                Alias for --separator '\t+'
@@ -64,38 +69,40 @@ Format Strings
 Format strings act much like regular expression and printf formats. They
 can reorder items and place them around other characters.
 
-    $1          First argument
-    $2          Second argument
+    #1          First argument
+    #2          Second argument
     ...         ...
 
 Format strings can also come with printf-like formatting
 
-    ${1,i}      The first number is the argument index as above
+    #{1,i}      The first number is the argument index as above
                 The second part (after the comma) is the extra formatting
 
 Advanced formatting: (all on first argument)
 
-    ${1,i}      Convert to an integer (truncated precision)
-    ${1,b}      Convert to a binary number
-    ${1,o}      Convert to an octal number
-    ${1,c}      Convert to an ascii character
-    ${1,d}      Convert to a signed integer
-    ${1,u}      Convert to an unsigned integer
-    ${1,e}      Convert to floating point in scientific notation
-    ${1,x}      Convert to hex
-    ${1,X}      Convert to hex with CAPITAL LETTERS
+    #{1,i}      Convert to an integer (truncated precision)
+    #{1,b}      Convert to a binary number
+    #{1,o}      Convert to an octal number
+    #{1,c}      Convert to an ascii character
+    #{1,d}      Convert to a signed integer
+    #{1,u}      Convert to an unsigned integer
+    #{1,e}      Convert to floating point in scientific notation
+    #{1,x}      Convert to hex
+    #{1,X}      Convert to hex with CAPITAL LETTERS
 
-    ${1,6s}     Convert to a string with six spaces or more
+    #{1,6s}     Convert to a string with six spaces or more
                 ('hi' => '    hi')
 
-    ${1,-6s}    Convert to a string with six spaces left justified
+    #{1,-6s}    Convert to a string with six spaces left justified
                 ('hi' => 'hi    ')
 
-    ${1,6i}     Convert to an integer with six spaces
+    #{1,6i}     Convert to an integer with six spaces
                 ('3.14159' => '     3')
 
-    ${1,0.4f}   Convert to a float rounded to 4 decimal places
+    #{1,0.4f}   Convert to a float rounded to 4 decimal places
                 ('3.14159' => '3.1416')
 
-    ${1,6.4i}   Float with minimum of six spaces and 4 decimal places
+    #{1,6.4i}   Float with minimum of six spaces and 4 decimal places
                 ('3.14159' => ' 3.1416')
+
+
