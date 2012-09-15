@@ -4,7 +4,7 @@ use 5.012;
 use strict;
 use warnings;
 
-use Test::More tests => 14;
+use Test::More tests => 18;
 
 my $repeat = '../repeat';
 my $tsv = 'fixtures/abc.tsv';
@@ -22,7 +22,6 @@ sub lines {
 
 # my $out2 = lines('a2', 'b2', '', 'd2');
 # print "\n\n###$out2###\n\n";
-
 
 # ---- Testing version ----
 my $version = trim(`$repeat --version`);
@@ -50,6 +49,10 @@ ok `$repeat '#1' $csv --separator ','` eq lines('a1', 'b1', 'c1', 'd1'), "arg1 c
 ok `$repeat '#2' $csv --comma` eq lines('a2', 'b2', '', 'd2'), 'arg2 csv --comma, should find blank at c2';
 
 # Spaces (all at once)
+ok `$repeat '#1' $ssv --spaces` eq lines('a1', 'b1', 'c1', 'd1'), 'arg1 csv --spaces';
+ok `$repeat '#1' $ssv --separator ' '` eq lines('a1', 'b1', 'c1', 'd1'), "arg1 csv --separator ','";
+ok `$repeat '#2' $ssv --spaces` eq lines('a2', 'b2', 'c3', 'd2'), 'arg2 csv --spaces';
+ok `$repeat '#3' $ssv --spaces` eq lines('a3', 'b3', '', ''), 'arg3 csv --spaces';
 
 # Whitespace
 ok `$repeat '#1' $wsv --whitespace` eq lines('a1', 'b1', 'c1', 'd1'), 'arg1 wsv --whitespace';
