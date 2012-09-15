@@ -225,7 +225,15 @@ for my $line (@lines)
   my @parts = @formatParts;
   for (my $i = 1; $i <= $#parts; $i += 2) {
     if ($parts[$i] =~ /$capturePattern/x) {
-      my $arg = $args[$+{index}-1];
+      my $arg = '';
+
+      # Get arg from file if not out of range
+      if(sizeof(@args) > $+{index}-1 && $+{index}-1 >= 0) {
+        $arg = $args[$+{index}-1];
+      } else {
+        # strict case
+      }
+
       $arg = trim($arg) if ($options{'trim'});
       my $scanFormat = trim($+{format});
       if (defined($scanFormat)) {
