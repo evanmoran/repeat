@@ -1,7 +1,7 @@
-// This is a comment
-# This is also a comment
-// Name	PhoneNumber	Age	Balance
-Fred	(206) 555-3521	27	12384.23
-Sarah	(206) 555-2938	74	9982.12
-Ted	(206) 555-9927	12	93.24
-Michelle	(206) 555-3552	22	8374.01
+# Fixture for repeat tests
+// Don't change these files
+
+# Name	Age	Balance	Description
+Sarah	74	9876.54	Loves fine wine.
+Ted	12	23	Talks to himself.
+Britta	2	1234.5	Afraid of butterflies.
