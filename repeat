@@ -4,116 +4,10 @@
 # ====================================================================
 #
 # (c) 2005-2012 Evan Moran
-# Repeat is freely distributable under the MIT license.
-#
 # http://github.com/evanmoran/repeat
-#
-# How does it work?
-# --------------------------------------------------------------------
-# Repeat allows commands to be automated with automagic substitution
-#
-# Quick example:
-#
-#     echo 'a, 10\nb, 20' |  repeat "touch '#1#2.txt'" --separator ','
-#
-# Output:
-#
-#     touch 'a10.txt'
-#     touch 'b20.txt'
-#
-# What you are seeing is the input is two lines of a comma separated list:
-#
-#     a, 10
-#     b, 20
-#
-# Repeat takes this input and splits by the separator `,`.
-# Then #1 and #2 are substituted as the first column in each line.
-#
-# By default repeat simply prints the commands, but does not run
-# the command. To execute the commands use the execute option
-# which is done with either `-x` or `--execute`. In the above
-# example this would have created two files: `a10.txt` and `b20.txt`.
-#
-# Usage
-# --------------------------------------------------------------------
-#
-# #### repeat format [options] [files...]
-#
-#     format                  The format string of the command to execute
-#                             Arguments are passed with the dollar sign:
-#
-#                               #1   First argument
-#                               #2   Second argument
-#                                    (and so on...)
-#
-#     options
-#
-#       -h, --help            Help on usage with examples
-#       -x, --execute         Execute the command instead of printing it
-#       -c, --comment <c>     Regexp to detect comment line (default: '(//|\#)')
-#       -s, --separator <c>   Regexp to split content on (default: '\t')
-#       -m, --marker <c>      Regexp to find argument in the format (default: '\#')
-#
-#                             In many ways `$` is a more natural choice but because it
-#                             has much more meaning on the commandline it ends up
-#                             requiring lots more escaping.
-#
-#       --comma               Alias for --separator ','
-#       --tab                 Alias for --separator '\t'
-#       --tabs                Alias for --separator '\t+'
-#       --spaces              Alias for --separator ' +'
-#       --whitespace          Alias for --separator '\s+'
-#
-#       --strict              Prevent commands from running if any $args are missing
-#                             This is useful if your data is irregular and missing
-#                             arguments could lead to bad commands (default: off)
-#
-#     files                   List of files to use as arguments to the format string
-#
-#                             Each line corresponds to a single format execution.
-#                             The --separator defines what the file is split on,
-#                             where the first part becomes $1, the second $2, etc.
-#
-# Format Strings
-# --------------------------------------------------------------------
-# Format strings act much like regular expression and printf formats. They
-# can reorder items and place them around other characters.
-#
-#     #1          First argument
-#     #2          Second argument
-#     ...         ...
-#
-# Format strings can also come with printf-like formatting
-#
-#     #{1,i}      The first number is the argument index as above
-#                 The second part (after the comma) is the extra formatting
-#
-# Advanced formatting: (all on first argument)
-#
-#     #{1,i}      Convert to an integer (truncated precision)
-#     #{1,b}      Convert to a binary number
-#     #{1,o}      Convert to an octal number
-#     #{1,c}      Convert to an ascii character
-#     #{1,d}      Convert to a signed integer
-#     #{1,u}      Convert to an unsigned integer
-#     #{1,e}      Convert to floating point in scientific notation
-#     #{1,x}      Convert to hex
-#     #{1,X}      Convert to hex with CAPITAL LETTERS
-#
-#     #{1,6s}     Convert to a string with six spaces or more
-#                 ('hi' => '    hi')
-#
-#     #{1,-6s}    Convert to a string with six spaces left justified
-#                 ('hi' => 'hi    ')
-#
-#     #{1,6i}     Convert to an integer with six spaces
-#                 ('3.14159' => '     3')
-#
-#     #{1,0.4f}   Convert to a float rounded to 4 decimal places
-#                 ('3.14159' => '3.1416')
-#
-#     #{1,6.4i}   Float with minimum of six spaces and 4 decimal places
-#                 ('3.14159' => ' 3.1416')
+
+# Repeat is freely distributable under the MIT license.
+# http://opensource.org/licenses/mit
 #
 
 use strict;
@@ -279,73 +173,6 @@ sub replaceFormat
 # Exit success
 exit 0;
 
-#   printHelp
-# --------------------------------------------------------------------
-#   Print complete help
-
-sub printHelp
-{
-  printUsage();
-
-  print <<EOF;
-  Basic Formatting:
-
-    #1         The first argument
-    #2         The second argument
-    ...         ...
-
-  Advanced Formatting:
-
-    #{1,i}      The first number is the argument index as above
-                The second part (after the comma) is the extra formatting
-
-    #{1,i}      Convert to an integer (truncated precision)
-    #{1,b}      Convert to a binary number
-    #{1,o}      Convert to an octal number
-    #{1,c}      Convert to an ascii character
-    #{1,d}      Convert to a signed integer
-    #{1,u}      Convert to an unsigned integer
-    #{1,e}      Convert to floating point in scientific notation
-    #{1,x}      Convert to hex
-    #{1,X}      Convert to hex with CAPITAL LETTERS
-
-    #{1,6s}     Convert to a string with six spaces or more
-                ('hi' => '    hi')
-
-    #{1,-6s}    Convert to a string with six spaces left justified
-                ('hi' => 'hi    ')
-
-    #{1,6i}     Convert to an integer with six spaces
-                ('3.14159' => '     3')
-
-    #{1,0.4f}   Convert to a float rounded to 4 decimal places
-                ('3.14159' => '3.1416')
-
-    #{1,6.4i}   Float with minimum of six spaces and 4 decimal places
-                ('3.14159' => ' 3.1416')
-
-  Example:
-
-      echo 'a, 10\\nb, 20' |  repeat "touch '#1#2.txt'" --separator ','
-
-  Output:
-
-      touch 'a10.txt'
-      touch 'b20.txt'
-
-  By default repeat simply prints the commands, but does not run them.
-  You can run the commands by using the execute option, which is done with
-  either -x or --execute.
-
-  Verbose prints the commands as they are executed.
-
-EOF
-
-  # Exit with argument if present
-  exit($_[0]) if ($#_ >= 0);
-
-}
-
 #   printUsage
 # --------------------------------------------------------------------
 #   Print commandline usage information
@@ -354,9 +181,14 @@ sub printUsage
 {
   print <<EOF;
 
-  repeat format [options] [files...]
+  repeat [options] format [files...]
 
     format                  The format string of the command to execute
+                            Arguments are passed with the dollar sign:
+
+                              #1   First argument
+                              #2   Second argument
+                                   (and so on...)
 
     options
 
@@ -364,18 +196,16 @@ sub printUsage
       -x, --execute         Execute the command instead of printing it
       -c, --comment <c>     Regexp to detect comment line (default: '(//|\\#)')
       -s, --separator <c>   Regexp to split content on (default: '\\t')
-      -m, --marker <c>      Regexp to find argument in the format (default: '(\\#|\\\$)')
-                            `#` or `\$` can be used interchangeably.
-                            Generally `\$` has more meaning on the commandline
-                            so it harder to type without escaping.
+      -m, --marker <c>      Regexp to find argument in the format (default: '\\#')
+
+                            Note: Initially `\$` seemed a better choice for the marker
+                            but in practice it required too much character escaping.
 
       --comma               Alias for --separator ','
       --tab                 Alias for --separator '\\t'
       --tabs                Alias for --separator '\\t+'
       --spaces              Alias for --separator ' +'
       --whitespace          Alias for --separator '\\s+'
-      --whitespace2         Alias for --separator '\\s\\s+'
-      --whitespace3         Alias for --separator '\\s\\s\\s+'
 
       --strict              Prevent commands from running if any #args are missing
                             This is useful if your data is irregular and missing
@@ -387,12 +217,66 @@ sub printUsage
                             The --separator defines what the file is split on,
                             where the first part becomes #1, the second #2, etc.
 
-                            By default lines beginning with '//' or '#' will be skipped.
+EOF
+
+  # Exit with argument if present
+  exit($_[0]) if ($#_ >= 0);
+}
+
+#   printHelp
+# --------------------------------------------------------------------
+#   Print complete help
+
+sub printHelp
+{
+  printUsage();
+
+  print <<EOF;
+  Format Strings
+
+    Format strings act much like regular expression and printf formats. They
+    can reorder items and place them around other characters.
+
+        #1          First argument
+        #2          Second argument
+        ...         ...
+
+  Advanced formatting: (all on first argument)
+
+    Format strings can also come with printf-like formatting.
+    The first argument is the argument number as shown above.
+    The second part after the command is the printf format:
+
+        #{1,i}      Convert to an integer (truncated precision)
+        #{1,b}      Convert to a binary number
+        #{1,o}      Convert to an octal number
+        #{1,c}      Convert to an ascii character
+        #{1,d}      Convert to a signed integer
+        #{1,u}      Convert to an unsigned integer
+        #{1,e}      Convert to floating point in scientific notation
+        #{1,x}      Convert to hex
+        #{1,X}      Convert to hex with CAPITAL LETTERS
+
+        #{1,6s}     Convert to a string with six spaces or more
+                    ('hi' => '    hi')
+
+        #{1,-6s}    Convert to a string with six spaces left justified
+                    ('hi' => 'hi    ')
+
+        #{1,6i}     Convert to an integer with six spaces
+                    ('3.14159' => '     3')
+
+        #{1,0.4f}   Convert to a float rounded to 4 decimal places
+                    ('3.14159' => '3.1416')
+
+        #{1,6.4i}   Float with minimum of six spaces and 4 decimal places
+                    ('3.14159' => ' 3.1416')
 
 EOF
 
   # Exit with argument if present
   exit($_[0]) if ($#_ >= 0);
+
 }
 
 #   printError
