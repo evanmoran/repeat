@@ -1,4 +1,4 @@
-
+all: test
 
 test:
 	make -C test all
