@@ -1,6 +1,6 @@
 
 
 all:
-	./repeat.pl
+	./tests.pl
 
 .PHONY: test
