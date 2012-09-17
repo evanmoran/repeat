@@ -10,24 +10,73 @@ How does it work?
 --------------------------------------------------------------------
 Repeat allows commands to be automated with automagic substitution.
 
-Quick example:
+Imagine you have a comma separated file called _data.csv_:
 
-    echo 'a, 10\nb, 20' |  repeat "touch '#1#2.txt'" --separator ','
+    Evan,     3.14,    Batman
+    Laura,    19,      James Bond
+    Sarah,    42,      Wolverine
 
-Output:
+Here is a simple example:
 
-    touch 'a10.txt'
-    touch 'b20.txt'
+    repeat '#1 loves #3' data.csv --comma
 
-Note that by default repeat simply prints the commands, and does
-not run them. You can run the commands by using the execute option
-which is done with either `-x` or `--execute`. In the above
-example this would have created two files: `a10.txt` and `b20.txt`.
+output:
+
+    Evan loves Batman
+    Laura loves James Bond
+    Sarah loves Wolverine
+
+Repeat can handle any type of separator: `--tab`, `--whitespace`, `--comma`
+or you can provide your own type of separator with a regular expression.
+
+Now let's craft a more complex command:
+
+    repeat 'echo "#1 loves #3" > #1.txt ' data.csv --comma
+
+output:
+
+    echo "Evan loves Batman" > Evan.txt
+    echo "Laura loves James Bond" > Laura.txt
+    echo "Sarah loves Wolverine" > Sarah.txt
+
+By default repeat simply prints the commands and _does not_ run them.
+To execute the commands use the execute option with `-x` or `--execute`:
+
+    repeat 'echo "#1 loves #3" > #1.txt ' data.csv --execute --comma
+
+This outputs nothing but creates three files:
+
+    Evan.txt
+    Laura.txt
+    Sarah.txt
+
+Use verbose mode (`-v` or `--verbose`) to print commands as they are being run:
+
+    repeat 'cat #1.txt' data.csv --execute --verbose --comma
+
+output:
+
+    [cat Evan.txt]
+    Evan loves Batman
+    [cat Laura.txt]
+    Laura loves James Bond
+    [cat Sarah.txt]
+    Sarah loves Wolverine
+
+Finally clean everything up:
+
+    repeat 'rm #1.txt' data.csv --execute --verbose --comma
+
+output:
+
+    [rm Evan.txt]
+    [rm Laura.txt]
+    [rm Sarah.txt]
 
 Usage
 --------------------------------------------------------------------
 
-### repeat format [options] [files...]
+#### repeat [options] format [files...]
 
     format                  The format string of the command to execute
                             Arguments are passed with the dollar sign:
@@ -44,9 +93,8 @@ Usage
       -s, --separator <c>   Regexp to split content on (default: '\t')
       -m, --marker <c>      Regexp to find argument in the format (default: '\#')
 
-                            In many ways `$` is a more natural choice but because it
-                            has much more meaning on the commandline it ends up
-                            requiring lots more escaping.
+                            Note: Initially `$` seemed a better choice for the marker
+                            but in practice it required too much character escaping.
 
       --comma               Alias for --separator ','
       --tab                 Alias for --separator '\t'
@@ -54,7 +102,7 @@ Usage
       --spaces              Alias for --separator ' +'
       --whitespace          Alias for --separator '\s+'
 
-      --strict              Prevent commands from running if any $args are missing
+      --strict              Prevent commands from running if any #args are missing
                             This is useful if your data is irregular and missing
                             arguments could lead to bad commands (default: off)
 
@@ -62,7 +110,7 @@ Usage
 
                             Each line corresponds to a single format execution.
                             The --separator defines what the file is split on,
-                            where the first part becomes $1, the second $2, etc.
+                            where the first part becomes #1, the second #2, etc.
 
 Format Strings
 --------------------------------------------------------------------
@@ -73,12 +121,11 @@ can reorder items and place them around other characters.
     #2          Second argument
     ...         ...
 
-Format strings can also come with printf-like formatting
-
-    #{1,i}      The first number is the argument index as above
-                The second part (after the comma) is the extra formatting
-
 Advanced formatting: (all on first argument)
+--------------------------------------------------------------------
+Format strings can also come with printf-like formatting.
+The first argument is the argument number as shown above.
+The second part after the command is the printf format:
 
     #{1,i}      Convert to an integer (truncated precision)
     #{1,b}      Convert to a binary number
@@ -104,5 +151,4 @@ Advanced formatting: (all on first argument)
 
     #{1,6.4i}   Float with minimum of six spaces and 4 decimal places
                 ('3.14159' => ' 3.1416')
-
 
